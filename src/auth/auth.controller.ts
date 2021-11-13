@@ -1,6 +1,6 @@
 import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
-import { LoginRequestBody } from './model/LoginRequestBody';
 import { AuthService } from './auth.service';
+import { LoginRequestBody } from './model/LoginRequestBody';
 import { IsPublic } from './public.decorator';
 
 @Controller()

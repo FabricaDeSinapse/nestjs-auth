@@ -1,21 +1,16 @@
 // NestJS
 import { ExecutionContext, Inject, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-
 // Password
 import { AuthGuard } from '@nestjs/passport';
-
 // RxJs
 import { of } from 'rxjs';
 import { map, mergeMap, takeWhile, tap } from 'rxjs/operators';
-
 // Services
 import { UserService } from '../user/user.service';
-
+import { AuthRequest } from './model/AuthRequest';
 // Models
 import { UserFromJwt } from './model/UserFromJwt';
-import { AuthRequest } from './model/AuthRequest';
-
 // Decorators
 import { IS_PUBLIC_KEY } from './public.decorator';
 
