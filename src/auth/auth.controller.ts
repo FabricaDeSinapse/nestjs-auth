@@ -1,6 +1,5 @@
 import {
   Controller,
-  Get,
   HttpCode,
   HttpStatus,
   Post,
@@ -22,11 +21,5 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async login(@Request() req: AuthRequest) {
     return this.authService.login(req.user);
-  }
-
-  @IsPublic()
-  @Get('test')
-  test() {
-    throw new Error('test');
   }
 }
