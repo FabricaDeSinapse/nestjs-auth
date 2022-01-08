@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/nestjs-auth-28-08-2021-aula.iml" filepath="$PROJECT_DIR$/.idea/nestjs-auth-28-08-2021-aula.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/nestjs-auth.iml" filepath="$PROJECT_DIR$/.idea/nestjs-auth.iml" />
     </modules>
   </component>
 </project>

@@ -1,4 +1,7 @@
 export interface UserPayload {
-  username: string;
   sub: number;
+  email: string;
+  name: string;
+  iat?: number;
+  exp?: number;
 }
