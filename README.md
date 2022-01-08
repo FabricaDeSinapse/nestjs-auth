@@ -4,12 +4,16 @@
 
 [TOC]
 
+## Iniciando um projeto NestJS
+
+Antes de iniciar, certifique-se de que você possui um projeto NestJS criado e que a CLI do NestJS está instalada no seu computador.
+
 ## Prisma
 
 ### Instalar o prisma
 
 ```bash
-npm install prisma -D
+npm install -D prisma
 ```
 
 ### Inicializar o prisma
@@ -129,33 +133,35 @@ export class PrismaService extends PrismaClient implements OnModuleInit {
 - `class-transformer`
 - `passport`
 - `passport-jwt`
+- `passport-local`
 
-Atalho para instalar tudo ao mesmo tempo:
+Comando para instalar tudo ao mesmo tempo:
 
 ```bash
-npm i @nestjs/passport @nestjs/jwt bcrypt passport passport-jwt
+npm i @nestjs/passport @nestjs/jwt bcrypt passport passport-jwt passport-local
 ```
 
 ## Dependências Dev
 
 - `@types/passport-jwt`
+- `@types/passport-local`
 - `@types/bcrypt`
 
 ```bash
-npm i -D @types/passport-jwt @types/bcrypt
+npm i -D @types/passport-jwt @types/passport-local @types/bcrypt
 ```
 
 ## Códigos
 
-### Domain/Autorização: diretório `user`
+### Usuários que serão autenticados: diretório `src/user`
 
-#### Comandos na CLI para criação dos arquivos
+#### Comando do terminal para criação dos arquivos
 
 ```bash
 nest g resource user
 ```
 
-#### `user/user.entity.ts`
+#### `src/user/entities/user.entity.ts`
 
 ```typescript
 export class User {
@@ -166,7 +172,7 @@ export class User {
 }
 ```
 
-#### `user/create-user.dto.ts`
+#### `src/user/dto/create-user.dto.ts`
 
 ```typescript
 import { User } from '../entities/user.entity';
@@ -195,7 +201,7 @@ export class CreateUserDto extends User {
 }
 ```
 
-#### `user/user.controller.ts`
+#### `src/user/user.controller.ts`
 
 ```typescript
 import { Body, Controller, Get, Param, Post } from '@nestjs/common';
@@ -213,7 +219,7 @@ export class UserController {
 }
 ```
 
-#### `user/user.service.ts`
+#### `src/user/user.service.ts`
 
 ```typescript
 import { Injectable } from '@nestjs/common';
@@ -241,17 +247,13 @@ export class UserService {
     };
   }
 
-  findById(id: number) {
-    return this.prisma.user.findUnique({ where: { id } });
-  }
-
   findByEmail(email: string) {
     return this.prisma.user.findUnique({ where: { email } });
   }
 }
 ```
 
-### `user/user.module.ts`
+### `src/user/user.module.ts`
 
 ```typescript
 import { Module } from '@nestjs/common';
@@ -266,6 +268,31 @@ import { UserService } from './user.service';
 export class UserModule {}
 ```
 
+### Ativando validação do `class-validator` no arquivo `main.ts`
+
+```typescript
+import { ValidationPipe } from '@nestjs/common';
+import { NestFactory } from '@nestjs/core';
+import { AppModule } from './app.module';
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+
+  // Pipes
+  app.useGlobalPipes(
+    new ValidationPipe({
+      transform: true,
+      whitelist: true,
+      forbidNonWhitelisted: true,
+    }),
+  );
+
+  await app.listen(3000);
+}
+
+bootstrap();
+```
+
 ### Autenticação: diretório `auth`
 
 ```bash
@@ -274,16 +301,18 @@ nest g controller auth
 nest g service auth
 ```
 
-#### `auth/auth.module.ts`
+#### `src/auth/auth.module.ts`
 
 ```typescript
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { UserModule } from '../user/user.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
-import { JwtStrategy } from './jwt.strategy';
+import { JwtStrategy } from './strategies/jwt.strategy';
+import { LocalStrategy } from './strategies/local.strategy';
+import { LoginValidationMiddleware } from './middlewares/login-validation.middleware';
 
 @Module({
   imports: [
@@ -295,39 +324,52 @@ import { JwtStrategy } from './jwt.strategy';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy],
+  providers: [AuthService, LocalStrategy, JwtStrategy],
 })
-export class AuthModule {}
+export class AuthModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(LoginValidationMiddleware).forRoutes('login');
+  }
+}
 ```
 
-#### `auth/auth.controller.ts`
+#### `src/auth/auth.controller.ts`
 
 ```typescript
-import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
+import {
+  Controller,
+  HttpCode,
+  HttpStatus,
+  Post,
+  Request,
+  UseGuards,
+} from '@nestjs/common';
 import { AuthService } from './auth.service';
-import { LoginRequestBody } from './model/LoginRequestBody';
-import { IsPublic } from './public.decorator';
+import { LocalAuthGuard } from './guards/local-auth.guard';
+import { AuthRequest } from './model/AuthRequest';
+import { IsPublic } from './decorators/is-public.decorator';
 
 @Controller()
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @IsPublic()
+  @UseGuards(LocalAuthGuard)
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  login(@Body() { email, password }: LoginRequestBody) {
-    return this.authService.login(email, password);
+  async login(@Request() req: AuthRequest) {
+    return this.authService.login(req.user);
   }
 }
 ```
 
-#### `auth/auth.service.ts`
+#### `src/auth/auth.service.ts`
 
 ```typescript
 import { Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
-import { UnauthorizedError } from '../errors/UnauthorizedError';
+import { UnauthorizedError } from './errors/unauthorized.error';
 import { User } from '../user/entities/user.entity';
 import { UserService } from '../user/user.service';
 import { UserPayload } from './model/UserPayload';
@@ -340,12 +382,11 @@ export class AuthService {
     private readonly userService: UserService,
   ) {}
 
-  async login(email: string, password: string): Promise<UserToken> {
-    const user: User = await this.validateUser(email, password);
-
+  async login(user: User): Promise<UserToken> {
     const payload: UserPayload = {
-      username: user.email,
       sub: user.id,
+      email: user.email,
+      name: user.name,
     };
 
     return {
@@ -353,7 +394,7 @@ export class AuthService {
     };
   }
 
-  private async validateUser(email: string, password: string) {
+  async validateUser(email: string, password: string): Promise<User> {
     const user = await this.userService.findByEmail(email);
 
     if (user) {
@@ -374,14 +415,14 @@ export class AuthService {
 }
 ```
 
-#### `auth/jwt.strategy.ts`
+#### `src/auth/strategies/jwt.strategy.ts`
 
 ```typescript
 import { Injectable } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
-import { UserFromJwt } from './model/UserFromJwt';
-import { UserPayload } from './model/UserPayload';
+import { UserFromJwt } from '../model/UserFromJwt';
+import { UserPayload } from '../model/UserPayload';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
@@ -394,12 +435,16 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: UserPayload): Promise<UserFromJwt> {
-    return { id: payload.sub, email: payload.username };
+    return {
+      id: payload.sub,
+      email: payload.email,
+      name: payload.name,
+    };
   }
 }
 ```
 
-#### `auth/jwt-auth.guard.ts`
+#### `src/auth/guards/jwt-auth.guard.ts`
 
 ```typescript
 // NestJS
@@ -407,16 +452,10 @@ import { ExecutionContext, Inject, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 // Password
 import { AuthGuard } from '@nestjs/passport';
-// RxJs
-import { of } from 'rxjs';
-import { map, mergeMap, takeWhile, tap } from 'rxjs/operators';
 // Services
-import { UserService } from '../user/user.service';
-import { AuthRequest } from './model/AuthRequest';
-// Models
-import { UserFromJwt } from './model/UserFromJwt';
+import { UserService } from '../../user/user.service';
 // Decorators
-import { IS_PUBLIC_KEY } from './public.decorator';
+import { IS_PUBLIC_KEY } from '../decorators/is-public.decorator';
 
 @Injectable()
 export class JwtAuthGuard extends AuthGuard('jwt') {
@@ -443,29 +482,53 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
       return canActivate;
     }
 
-    return of(canActivate).pipe(
-      mergeMap((value) => value),
-      takeWhile((value) => value),
-      map(() => context.switchToHttp().getRequest<AuthRequest>()),
-      mergeMap((request) =>
-        of(request).pipe(
-          map((req) => {
-            if (!req.user) {
-              throw Error('User was not found in request.');
-            }
+    return super.canActivate(context);
+  }
+}
+```
 
-            return req.user;
-          }),
-          mergeMap((userFromJwt: UserFromJwt) =>
-            this.userService.findById(userFromJwt.id),
-          ),
-          tap((user) => {
-            request.principal = user;
-          }),
-        ),
-      ),
-      map((user) => Boolean(user)),
-    );
+#### `src/auth/strategies/local.strategy.ts`
+
+```typescript
+import { Injectable } from '@nestjs/common';
+import { PassportStrategy } from '@nestjs/passport';
+import { Strategy } from 'passport-local';
+import { AuthService } from '../auth.service';
+
+@Injectable()
+export class LocalStrategy extends PassportStrategy(Strategy) {
+  constructor(private authService: AuthService) {
+    super({ usernameField: 'email' });
+  }
+
+  validate(email: string, password: string) {
+    return this.authService.validateUser(email, password);
+  }
+}
+```
+
+#### `src/auth/guards/local-auth.guard.ts`
+
+```typescript
+import {
+  ExecutionContext,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
+
+@Injectable()
+export class LocalAuthGuard extends AuthGuard('local') {
+  canActivate(context: ExecutionContext) {
+    return super.canActivate(context);
+  }
+
+  handleRequest(err, user) {
+    if (err || !user) {
+      throw new UnauthorizedException(err?.message);
+    }
+
+    return user;
   }
 }
 ```
@@ -478,7 +541,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
-import { JwtAuthGuard } from './auth/jwt-auth.guard';
+import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { PrismaModule } from './prisma/prisma.module';
 import { UserModule } from './user/user.module';
 
@@ -496,183 +559,163 @@ import { UserModule } from './user/user.module';
 export class AppModule {}
 ```
 
-#### Diretório `auth/model`
+#### Diretório `src/auth/model`
 
-##### `auth/model/UserFromJwt.ts`
-
-```typescript
-import { User } from '../../user/entities/user.entity';
-
-export type UserFromJwt = Partial<User>;
-```
-
-##### `auth/model/UserPayload.ts`
-
-```typescript
-export interface UserPayload {
-    username: string;
-    sub: number;
-}
-```
-
-##### `auth/model/UserToken.ts`
-
-```typescript
-export interface UserToken {
-    access_token: string;
-}
-```
-
-##### `auth/model/AuthRequest.ts`
+##### `src/auth/model/AuthRequest.ts`
 
 ```typescript
 import { Request } from 'express';
-import { User } from '../../domain/user/entities/user.entity';
+import { User } from '../../user/entities/user.entity';
 
 export interface AuthRequest extends Request {
-    principal: User;
+  user: User;
 }
 ```
 
-##### `auth/model/LoginRequestBody.ts`
+##### `src/auth/model/LoginRequestBody.ts`
 
 ```typescript
-import {
-  IsEmail,
-  IsString,
-  Matches,
-  MaxLength,
-  MinLength,
-} from 'class-validator';
+import { IsEmail, IsString } from 'class-validator';
 
 export class LoginRequestBody {
   @IsEmail()
   email: string;
 
   @IsString()
-  @MinLength(4)
-  @MaxLength(20)
-  @Matches(/((?=.*\d)|(?=.*\W+))(?![.\n])(?=.*[A-Z])(?=.*[a-z]).*$/, {
-    message: 'password too weak',
-  })
   password: string;
 }
 ```
 
-### Decorators
-
-#### `auth/public.decorator.ts`
+##### `src/auth/model/UserFromJwt.ts`
 
 ```typescript
-import { SetMetadata } from '@nestjs/common';
-
-export const IS_PUBLIC_KEY = 'isPublic';
-export const Public = () => SetMetadata(IS_PUBLIC_KEY, true);
+export class UserFromJwt {
+  id: number;
+  email: string;
+  name: string;
+}
 ```
 
-#### `auth/current-user.decorator.ts`
+##### `src/auth/model/UserPayload.ts`
+
+```typescript
+export interface UserPayload {
+  sub: number;
+  email: string;
+  name: string;
+  iat?: number;
+  exp?: number;
+}
+```
+
+##### `src/auth/model/UserToken.ts`
+
+```typescript
+export interface UserToken {
+  access_token: string;
+}
+```
+
+#### Decorators: diretório `src/auth/decorators`
+
+##### `src/auth/decorators/current-user.decorator.ts`
 
 ```typescript
 import { createParamDecorator, ExecutionContext } from '@nestjs/common';
 import { User } from 'src/user/entities/user.entity';
-import { AuthRequest } from './model/AuthRequest';
+import { AuthRequest } from '../model/AuthRequest';
 
 export const CurrentUser = createParamDecorator(
   (data: unknown, context: ExecutionContext): User => {
     const request = context.switchToHttp().getRequest<AuthRequest>();
 
-    return request.principal;
+    return request.user;
   },
 );
 ```
 
-### Tratamento de erros: diretório `errors`
+##### `src/auth/decorators/is-public.decorator.ts`
 
-#### `src/errors/unauthorized.error.ts`
+```typescript
+import { SetMetadata } from '@nestjs/common';
+
+export const IS_PUBLIC_KEY = 'isPublic';
+export const IsPublic = () => SetMetadata(IS_PUBLIC_KEY, true);
+```
+
+#### Tratamento de erros: diretório `src/auth/errors`
+
+##### `src/auth/errors/unauthorized.error.ts`
 
 ```typescript
 export class UnauthorizedError extends Error {}
 ```
 
-### Tratamento de erros: diretório `interpcetor`
+### Ativando validação de dados para o Login
 
-#### `src/interceptors/unauthorized.interceptor.ts`
+#### `src/auth/middlewares/login-validation.middleware.ts`
 
 ```typescript
 import {
-  CallHandler,
-  ExecutionContext,
+  BadRequestException,
   Injectable,
-  NestInterceptor,
-  UnauthorizedException,
+  NestMiddleware,
 } from '@nestjs/common';
-import { Observable } from 'rxjs';
-import { catchError } from 'rxjs/operators';
-import { UnauthorizedError } from '../errors/UnauthorizedError';
+import { NextFunction, Request, Response } from 'express';
+import { LoginRequestBody } from '../model/LoginRequestBody';
+import { validate } from 'class-validator';
 
 @Injectable()
-export class UnauthorizedInterceptor implements NestInterceptor {
-  intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
-    return next.handle().pipe(
-      catchError((error) => {
-        if (error instanceof UnauthorizedError) {
-          throw new UnauthorizedException(error.message);
-        } else {
-          throw error;
-        }
-      }),
-    );
+export class LoginValidationMiddleware implements NestMiddleware {
+  async use(req: Request, res: Response, next: NextFunction) {
+    const body = req.body;
+
+    const loginRequestBody = new LoginRequestBody();
+    loginRequestBody.email = body.email;
+    loginRequestBody.password = body.password;
+
+    const validations = await validate(loginRequestBody);
+
+    if (validations.length) {
+      throw new BadRequestException(
+        validations.reduce((acc, curr) => {
+          return [...acc, ...Object.values(curr.constraints)];
+        }, []),
+      );
+    }
+
+    next();
   }
 }
 ```
 
-### Ativando validação e interceptor no `main.ts`
-
-```typescript
-import { ValidationPipe } from '@nestjs/common';
-import { NestFactory } from '@nestjs/core';
-import { AppModule } from './app.module';
-import { UnauthorizedInterceptor } from './interceptors/unauthorized.interceptor';
-
-async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
-
-  // Pipes
-  app.useGlobalPipes(
-    new ValidationPipe({
-      transform: true,
-      whitelist: true,
-      forbidNonWhitelisted: true,
-    }),
-  );
-
-  // Interceptors
-  app.useGlobalInterceptors(new UnauthorizedInterceptor());
-
-  await app.listen(3000);
-}
-
-bootstrap();
-```
-
 ## Requisições
 
-Para criar um usuário, certifique-se de liberar o endpoint antes com o `decorator` `@IsPublic()`.
+### Criação de usuário
 
-Caso a criação de usuários da sua aplicação seja restrita, remova o `decorator` `IsPublic()`, pois as próximas criações deverão ser autenticadas por um usuário já existente.
+> **❗ Importante ❗**
+>
+> Para criar um usuário, certifique-se de liberar o endpoint antes com o `decorator` `@IsPublic()`.
+>
+> Caso a criação de usuários da sua aplicação seja restrita, remova o `decorator` `IsPublic()`, pois as próximas criações deverão ser autenticadas por um usuário já existente.
+
+**Endpoint:** `/user`
+
+**Method:** `POST`
+
+**Request Body:**
 
 ```json
-Endpoint: /user
-Method: POST
-
-Request Body:
 {
 	"email": "paulo@salvatore.tech",
-	"password": "Ab12",
+	"password": "Abc@123",
     "name": "Paulo Salvatore"
 }
+```
 
-Response Body (201):
+**Response Body (Status 201):**
+
+```json
 {
     "id": 1,
 	"email": "paulo@salvatore.tech",
@@ -680,17 +723,24 @@ Response Body (201):
 }
 ```
 
-```json
-Endpoint: /login
-Method: POST
+### Realizando o login
 
-Request Body:
+**Endpoint:** `/login`
+
+**Method:** `POST`
+
+**Request Body:**
+
+```json
 {
 	"email": "paulo@salvatore.tech",
 	"password": "Ab12"
 }
+```
 
-Response Body (200):
+**Response Body (Status 200):**
+
+```json
 {
     "access_token": "JWT token gerado"
 }
