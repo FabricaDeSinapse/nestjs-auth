@@ -1,3 +1,5 @@
-import { User } from '../../user/entities/user.entity';
-
-export type UserFromJwt = Partial<User>;
+export class UserFromJwt {
+  id: number;
+  email: string;
+  name: string;
+}
