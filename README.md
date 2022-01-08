@@ -349,7 +349,7 @@ export class AuthService {
     };
 
     return {
-      accessToken: this.jwtService.sign(payload),
+      access_token: this.jwtService.sign(payload),
     };
   }
 
@@ -519,7 +519,7 @@ export interface UserPayload {
 
 ```typescript
 export interface UserToken {
-    accessToken: string;
+    access_token: string;
 }
 ```
 
@@ -692,6 +692,6 @@ Request Body:
 
 Response Body (200):
 {
-    "accessToken": "JWT token gerado"
+    "access_token": "JWT token gerado"
 }
 ```
