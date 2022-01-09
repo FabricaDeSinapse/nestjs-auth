@@ -703,8 +703,8 @@ export class LoginValidationMiddleware implements NestMiddleware {
 
 ```json
 {
-	"email": "paulo@salvatore.tech",
-	"password": "Abc@123",
+    "email": "paulo@salvatore.tech",
+    "password": "Abc@123",
     "name": "Paulo Salvatore"
 }
 ```
@@ -714,7 +714,7 @@ export class LoginValidationMiddleware implements NestMiddleware {
 ```json
 {
     "id": 1,
-	"email": "paulo@salvatore.tech",
+    "email": "paulo@salvatore.tech",
     "name": "Paulo Salvatore"
 }
 ```
@@ -729,8 +729,8 @@ export class LoginValidationMiddleware implements NestMiddleware {
 
 ```json
 {
-	"email": "paulo@salvatore.tech",
-	"password": "Ab12"
+    "email": "paulo@salvatore.tech",
+    "password": "Ab12"
 }
 ```
 
