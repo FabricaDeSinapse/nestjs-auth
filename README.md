@@ -1,8 +1,4 @@
-# NestJS - Autenticação e Autorização com JWT
-
-## Tópicos
-
-[TOC]
+# Autenticação (Sistema de Login) com Token JWT
 
 ## Iniciando um projeto NestJS
 
