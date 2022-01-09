@@ -4,8 +4,8 @@ import * as bcrypt from 'bcrypt';
 import { UnauthorizedError } from './errors/unauthorized.error';
 import { User } from '../user/entities/user.entity';
 import { UserService } from '../user/user.service';
-import { UserPayload } from './model/UserPayload';
-import { UserToken } from './model/UserToken';
+import { UserPayload } from './models/UserPayload';
+import { UserToken } from './models/UserToken';
 
 @Injectable()
 export class AuthService {

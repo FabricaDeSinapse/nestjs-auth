@@ -89,10 +89,9 @@ nest g service prisma
 ##### `src/prima/prisma.module.ts`
 
 ```typescript
-import { Global, Module } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { PrismaService } from './prisma.service';
 
-@Global()
 @Module({
   providers: [PrismaService],
   exports: [PrismaService],
@@ -134,7 +133,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit {
 Comando para instalar tudo ao mesmo tempo:
 
 ```bash
-npm i @nestjs/passport @nestjs/jwt bcrypt passport passport-jwt passport-local
+npm i @nestjs/passport @nestjs/jwt bcrypt class-validator class-transformer passport passport-jwt passport-local
 ```
 
 ## Dependências Dev
@@ -342,7 +341,7 @@ import {
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { LocalAuthGuard } from './guards/local-auth.guard';
-import { AuthRequest } from './model/AuthRequest';
+import { AuthRequest } from './models/AuthRequest';
 import { IsPublic } from './decorators/is-public.decorator';
 
 @Controller()
@@ -368,8 +367,8 @@ import * as bcrypt from 'bcrypt';
 import { UnauthorizedError } from './errors/unauthorized.error';
 import { User } from '../user/entities/user.entity';
 import { UserService } from '../user/user.service';
-import { UserPayload } from './model/UserPayload';
-import { UserToken } from './model/UserToken';
+import { UserPayload } from './models/UserPayload';
+import { UserToken } from './models/UserToken';
 
 @Injectable()
 export class AuthService {
@@ -417,8 +416,8 @@ export class AuthService {
 import { Injectable } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
-import { UserFromJwt } from '../model/UserFromJwt';
-import { UserPayload } from '../model/UserPayload';
+import { UserFromJwt } from '../models/UserFromJwt';
+import { UserPayload } from '../models/UserPayload';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
@@ -444,21 +443,16 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
 ```typescript
 // NestJS
-import { ExecutionContext, Inject, Injectable } from '@nestjs/common';
+import { ExecutionContext, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 // Password
 import { AuthGuard } from '@nestjs/passport';
-// Services
-import { UserService } from '../../user/user.service';
 // Decorators
 import { IS_PUBLIC_KEY } from '../decorators/is-public.decorator';
 
 @Injectable()
 export class JwtAuthGuard extends AuthGuard('jwt') {
-  constructor(
-    private reflector: Reflector,
-    @Inject(UserService) private readonly userService: UserService,
-  ) {
+  constructor(private reflector: Reflector) {
     super();
   }
 
@@ -555,9 +549,9 @@ import { UserModule } from './user/user.module';
 export class AppModule {}
 ```
 
-#### Diretório `src/auth/model`
+#### Diretório `src/auth/models`
 
-##### `src/auth/model/AuthRequest.ts`
+##### `src/auth/models/AuthRequest.ts`
 
 ```typescript
 import { Request } from 'express';
@@ -568,7 +562,7 @@ export interface AuthRequest extends Request {
 }
 ```
 
-##### `src/auth/model/LoginRequestBody.ts`
+##### `src/auth/models/LoginRequestBody.ts`
 
 ```typescript
 import { IsEmail, IsString } from 'class-validator';
@@ -582,7 +576,7 @@ export class LoginRequestBody {
 }
 ```
 
-##### `src/auth/model/UserFromJwt.ts`
+##### `src/auth/models/UserFromJwt.ts`
 
 ```typescript
 export class UserFromJwt {
@@ -592,7 +586,7 @@ export class UserFromJwt {
 }
 ```
 
-##### `src/auth/model/UserPayload.ts`
+##### `src/auth/models/UserPayload.ts`
 
 ```typescript
 export interface UserPayload {
@@ -604,7 +598,7 @@ export interface UserPayload {
 }
 ```
 
-##### `src/auth/model/UserToken.ts`
+##### `src/auth/models/UserToken.ts`
 
 ```typescript
 export interface UserToken {
@@ -619,7 +613,7 @@ export interface UserToken {
 ```typescript
 import { createParamDecorator, ExecutionContext } from '@nestjs/common';
 import { User } from 'src/user/entities/user.entity';
-import { AuthRequest } from '../model/AuthRequest';
+import { AuthRequest } from '../models/AuthRequest';
 
 export const CurrentUser = createParamDecorator(
   (data: unknown, context: ExecutionContext): User => {
@@ -658,7 +652,7 @@ import {
   NestMiddleware,
 } from '@nestjs/common';
 import { NextFunction, Request, Response } from 'express';
-import { LoginRequestBody } from '../model/LoginRequestBody';
+import { LoginRequestBody } from '../models/LoginRequestBody';
 import { validate } from 'class-validator';
 
 @Injectable()
@@ -730,7 +724,7 @@ export class LoginValidationMiddleware implements NestMiddleware {
 ```json
 {
     "email": "paulo@salvatore.tech",
-    "password": "Ab12"
+    "password": "Abc@123"
 }
 ```
 
